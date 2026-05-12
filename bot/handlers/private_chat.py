@@ -159,7 +159,21 @@ async def handle_user_message(message: Message):
 
     if message.text:
         # 纯文本消息
-        forward_text = f"{header}\n\n💬 {content}"
+        forward_info = ""
+        if message.forward_date:
+            if message.forward_from:
+                forward_info = f"\n📨 转发自: {message.forward_from.first_name}"
+                if message.forward_from.username:
+                    forward_info += f" (@{message.forward_from.username})"
+                forward_info += f" | ID: {message.forward_from.id}"
+            elif message.forward_sender_name:
+                forward_info = f"\n📨 转发自: {message.forward_sender_name}"
+            elif message.forward_from_chat:
+                forward_info = f"\n📨 转发自频道: {message.forward_from_chat.title}"
+            else:
+                forward_info = "\n📨 转发消息"
+
+        forward_text = f"{header}{forward_info}\n\n💬 {content}"
         try:
             admin_msg = await message.bot.send_message(
                 config.ADMIN_ID,
