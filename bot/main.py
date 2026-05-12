@@ -75,7 +75,19 @@ async def main():
 
     # 启动 Bot
     logging.info("🤖 Bot 启动中...")
-    await dp.start_polling(bot)
+
+    # 通知管理员 Bot 已上线
+    try:
+        await bot.send_message(
+            config.ADMIN_ID,
+            "✅ Bot 已上线！\n\n"
+            "如果有用户在离线期间发送了消息，系统会自动处理（Telegram 最多缓存24小时内的消息）。",
+        )
+    except Exception as e:
+        logging.warning(f"发送启动通知失败: {e}")
+
+    # drop_pending_updates=False: 不丢弃离线期间的用户消息
+    await dp.start_polling(bot, drop_pending_updates=False)
 
 
 if __name__ == "__main__":
