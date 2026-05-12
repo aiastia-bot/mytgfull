@@ -22,6 +22,26 @@ def is_admin(message: Message) -> bool:
     return message.from_user.id == config.ADMIN_ID
 
 
+async def extract_user_id(message: Message) -> int | None:
+    """从回复的消息或命令参数中提取用户 ID"""
+    # 优先从回复的消息中提取
+    if message.reply_to_message:
+        reply_msg_id = message.reply_to_message.message_id
+        user_id = await get_admin_msg_user_id(reply_msg_id)
+        if user_id:
+            return user_id
+
+    # 其次从命令参数中提取
+    args = message.text.split(maxsplit=1)
+    if len(args) >= 2:
+        try:
+            return int(args[1].strip())
+        except ValueError:
+            pass
+
+    return None
+
+
 @router.message(F.chat.type == "private", Command("users"))
 async def cmd_users(message: Message):
     """查看所有用户列表"""
@@ -45,19 +65,13 @@ async def cmd_users(message: Message):
 
 @router.message(F.chat.type == "private", Command("takeover"))
 async def cmd_takeover(message: Message):
-    """接管用户对话"""
+    """接管用户对话 - 支持回复消息或输入用户ID"""
     if not is_admin(message):
         return
 
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.answer("用法: /takeover 用户ID")
-        return
-
-    try:
-        user_id = int(args[1].strip())
-    except ValueError:
-        await message.answer("❌ 无效的用户 ID")
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /takeover，或 /takeover 用户ID")
         return
 
     await set_takeover(user_id, True)
@@ -72,19 +86,13 @@ async def cmd_takeover(message: Message):
 
 @router.message(F.chat.type == "private", Command("auto"))
 async def cmd_auto(message: Message):
-    """交回给 AI 自动回复"""
+    """交回给 AI 自动回复 - 支持回复消息或输入用户ID"""
     if not is_admin(message):
         return
 
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.answer("用法: /auto 用户ID")
-        return
-
-    try:
-        user_id = int(args[1].strip())
-    except ValueError:
-        await message.answer("❌ 无效的用户 ID")
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /auto，或 /auto 用户ID")
         return
 
     await set_takeover(user_id, False)
@@ -99,19 +107,13 @@ async def cmd_auto(message: Message):
 
 @router.message(F.chat.type == "private", Command("history"))
 async def cmd_history(message: Message):
-    """查看用户对话历史"""
+    """查看用户对话历史 - 支持回复消息或输入用户ID"""
     if not is_admin(message):
         return
 
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.answer("用法: /history 用户ID")
-        return
-
-    try:
-        user_id = int(args[1].strip())
-    except ValueError:
-        await message.answer("❌ 无效的用户 ID")
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /history，或 /history 用户ID")
         return
 
     history = await get_user_history(user_id, limit=20)
