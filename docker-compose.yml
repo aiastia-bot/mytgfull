@@ -1,6 +1,6 @@
 services:
   bot:
-    build: .
+    image: aiastia/mytgfull:latest
     container_name: tg-assistant-bot
     restart: unless-stopped
     env_file:
