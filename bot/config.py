@@ -23,9 +23,6 @@ class Config:
     # 对话记忆
     MAX_HISTORY_ROUNDS: int = int(os.getenv("MAX_HISTORY_ROUNDS", "10"))
 
-    # 支付
-    PAYMENT_PROVIDER_TOKEN: str = os.getenv("PAYMENT_PROVIDER_TOKEN", "")
-    DONATION_CURRENCY: str = os.getenv("DONATION_CURRENCY", "USD")
 
 
 config = Config()
