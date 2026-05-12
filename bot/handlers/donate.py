@@ -1,3 +1,5 @@
+import html as html_module
+
 from aiogram import Router, F
 from aiogram.types import Message, LabeledPrice, PreCheckoutQuery
 from aiogram.filters import Command
@@ -20,7 +22,7 @@ DONATION_OPTIONS = [
 async def cmd_donate(message: Message):
     """显示捐赠选项"""
     text = (
-        "❤️ **支持我们**\n\n"
+        "❤️ <b>支持我们</b>\n\n"
         "如果你觉得这个 Bot 对你有帮助，可以考虑支持一下！\n"
         "点击下方按钮选择捐赠金额（使用 Telegram Stars ⭐）：\n\n"
     )
@@ -35,23 +37,23 @@ async def cmd_donate(message: Message):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
     # 如果启用了加密货币捐赠，额外展示钱包地址
     if config.CRYPTO_ENABLED:
-        crypto_lines = ["\n₿ **加密货币捐赠**\n"]
+        crypto_lines = ["\n₿ <b>加密货币捐赠</b>\n"]
         if config.CRYPTO_BTC:
-            crypto_lines.append(f"**BTC:** `{config.CRYPTO_BTC}`")
+            crypto_lines.append(f"<b>BTC:</b> <code>{html_module.escape(config.CRYPTO_BTC)}</code>")
         if config.CRYPTO_ETH:
-            crypto_lines.append(f"**ETH:** `{config.CRYPTO_ETH}`")
+            crypto_lines.append(f"<b>ETH:</b> <code>{html_module.escape(config.CRYPTO_ETH)}</code>")
         if config.CRYPTO_USDT:
-            crypto_lines.append(f"**USDT (ERC-20):** `{config.CRYPTO_USDT}`")
+            crypto_lines.append(f"<b>USDT (ERC-20):</b> <code>{html_module.escape(config.CRYPTO_USDT)}</code>")
         if config.CRYPTO_TRON:
-            crypto_lines.append(f"**TRON (TRC-20):** `{config.CRYPTO_TRON}`")
+            crypto_lines.append(f"<b>TRON (TRC-20):</b> <code>{html_module.escape(config.CRYPTO_TRON)}</code>")
 
         if len(crypto_lines) > 1:
             crypto_text = "\n".join(crypto_lines)
-            await message.answer(crypto_text, parse_mode="Markdown")
+            await message.answer(crypto_text, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("donate_"))

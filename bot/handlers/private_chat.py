@@ -1,3 +1,5 @@
+import html as html_module
+
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import CommandStart
@@ -6,6 +8,7 @@ from bot.database import (
     ensure_user,
     is_takeover,
     save_message,
+    update_message_admin_id,
     get_admin_msg_user_id,
     get_last_admin_msg_id,
 )
@@ -142,20 +145,18 @@ async def handle_user_message(message: Message):
     # 获取消息文本内容
     content = message.text or message.caption or "[非文本消息]"
 
-    # 保存用户消息
-    await save_message(user.id, "in", content)
-
     # 构建管理员消息头部
-    user_info = f"👤 用户: {user.first_name}"
+    user_info = f"👤 用户: {html_module.escape(user.first_name or '未知')}"
     if user.username:
-        user_info += f" (@{user.username})"
-    user_info += f" | ID: `{user.id}`"
+        user_info += f" (@{html_module.escape(user.username)})"
+    user_info += f" | ID: <code>{user.id}</code>"
 
     mode_label = "🔴 [人工接管中]" if takeover else "🤖 [AI 自动回复]"
     header = f"{mode_label}\n{user_info}"
 
-    # 转发给管理员
+    # 转发给管理员（只转发，不保存消息到 DB，避免 ask_ai 历史重复）
     last_admin_msg_id = await get_last_admin_msg_id(user.id)
+    admin_msg_id = None
 
     if message.text:
         # 纯文本消息
@@ -173,22 +174,22 @@ async def handle_user_message(message: Message):
             else:
                 forward_info = "\n📨 转发消息"
 
-        forward_text = f"{header}{forward_info}\n\n💬 {content}"
+        forward_text = f"{header}{forward_info}\n\n💬 {html_module.escape(content)}"
         try:
             admin_msg = await message.bot.send_message(
                 config.ADMIN_ID,
                 forward_text,
-                parse_mode="Markdown",
+                parse_mode="HTML",
                 reply_to_message_id=last_admin_msg_id if last_admin_msg_id else None,
             )
-            await save_message(user.id, "in", content, admin_msg_id=admin_msg.message_id)
+            admin_msg_id = admin_msg.message_id
         except Exception:
             pass
     else:
         # 媒体消息
         admin_msg = await forward_media_to_admin(message, config.ADMIN_ID, header)
         if admin_msg:
-            await save_message(user.id, "in", content, admin_msg_id=admin_msg.message_id)
+            admin_msg_id = admin_msg.message_id
 
     # 如果未被接管，AI 自动回复
     if not takeover:
@@ -205,11 +206,16 @@ async def handle_user_message(message: Message):
         # 发送"正在输入"状态
         await message.bot.send_chat_action(user.id, "typing")
 
+        # 调用 AI（此时用户消息尚未保存到 DB，历史记录不会重复）
         ai_reply = await ask_ai(user.id, ai_content)
 
-        # 保存 AI 回复
+        # 保存用户消息到 DB（仅一次，在 ask_ai 之后避免历史重复）
+        await save_message(user.id, "in", content, admin_msg_id=admin_msg_id)
+
+        # 保存 AI 回复到 DB（仅一次）
         await save_message(user.id, "out_ai", ai_reply)
 
+        # 发送 AI 回复给用户
         await message.answer(ai_reply)
 
         # 通知管理员 AI 的回复（回复到用户消息，形成线程）
@@ -217,9 +223,13 @@ async def handle_user_message(message: Message):
             current_last = await get_last_admin_msg_id(user.id)
             ai_admin_msg = await message.bot.send_message(
                 config.ADMIN_ID,
-                f"🤖 [AI 回复给 {user.first_name}]\n\n{ai_reply}",
+                f"🤖 [AI 回复给 {html_module.escape(user.first_name)}]\n\n{html_module.escape(ai_reply)}",
                 reply_to_message_id=current_last if current_last else None,
             )
-            await save_message(user.id, "out_ai", ai_reply, admin_msg_id=ai_admin_msg.message_id)
+            # 更新 AI 回复记录的 admin_msg_id（避免重复保存）
+            await update_message_admin_id(user.id, "out_ai", ai_admin_msg.message_id)
         except Exception:
             pass
+    else:
+        # 接管模式：只保存用户消息
+        await save_message(user.id, "in", content, admin_msg_id=admin_msg_id)

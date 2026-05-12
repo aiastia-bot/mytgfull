@@ -251,6 +251,19 @@ async def get_last_active_user(admin_id: int) -> int | None:
         await db.close()
 
 
+async def update_message_admin_id(user_id: int, direction: str, admin_msg_id: int):
+    """更新最近一条消息的 admin_msg_id（避免重复保存消息）"""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE messages SET admin_msg_id = ? WHERE user_id = ? AND direction = ? AND id = (SELECT id FROM messages WHERE user_id = ? AND direction = ? ORDER BY id DESC LIMIT 1)",
+            (admin_msg_id, user_id, direction, user_id, direction),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
 async def get_system_prompt() -> str:
     """获取当前 AI 系统提示词"""
     from bot.config import config

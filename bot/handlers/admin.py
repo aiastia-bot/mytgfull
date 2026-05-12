@@ -1,3 +1,5 @@
+import html as html_module
+
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
@@ -57,14 +59,14 @@ async def cmd_users(message: Message):
         await message.answer("📭 暂无用户")
         return
 
-    text = "📋 **用户列表**\n\n"
+    text = "📋 <b>用户列表</b>\n\n"
     for u in users:
         takeover_mark = "🔴" if u[6] else "🤖"
-        username = f"@{u[1]} " if u[1] else ""
-        name = u[2] or u[1] or "Unknown"
-        text += f"{takeover_mark} {name} {username}| `{u[0]}` | 末次活跃: {u[5][:16]}\n"
+        username = f"@{html_module.escape(u[1])} " if u[1] else ""
+        name = html_module.escape(u[2] or u[1] or "Unknown")
+        text += f"{takeover_mark} {name} {username}| <code>{u[0]}</code> | 末次活跃: {u[5][:16]}\n"
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="HTML")
 
 
 @router.message(F.chat.type == "private", Command("takeover"))
@@ -79,7 +81,7 @@ async def cmd_takeover(message: Message):
         return
 
     await set_takeover(user_id, True)
-    await message.answer(f"✅ 已接管用户 `{user_id}` 的对话，现在由你亲自回复。", parse_mode="Markdown")
+    await message.answer(f"✅ 已接管用户 <code>{user_id}</code> 的对话，现在由你亲自回复。", parse_mode="HTML")
 
     # 通知用户
     try:
@@ -100,7 +102,7 @@ async def cmd_auto(message: Message):
         return
 
     await set_takeover(user_id, False)
-    await message.answer(f"✅ 用户 `{user_id}` 的对话已交回 AI 助理。", parse_mode="Markdown")
+    await message.answer(f"✅ 用户 <code>{user_id}</code> 的对话已交回 AI 助理。", parse_mode="HTML")
 
     # 通知用户
     try:
@@ -125,10 +127,10 @@ async def cmd_history(message: Message):
         await message.answer("📭 暂无对话记录")
         return
 
-    text = f"📜 **用户 `{user_id}` 对话历史**\n\n"
+    text = f"📜 <b>用户 <code>{user_id}</code> 对话历史</b>\n\n"
     for row in history:
         direction = row[0]
-        content = row[1]
+        content = html_module.escape(row[1] or "")
         time = row[2][:16] if row[2] else ""
 
         if direction == "in":
@@ -143,7 +145,7 @@ async def cmd_history(message: Message):
     if len(text) > 4000:
         text = text[:4000] + "\n\n... (已截断)"
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="HTML")
 
 
 @router.message(F.chat.type == "private", Command("setprompt"))
@@ -172,13 +174,13 @@ async def cmd_stats(message: Message):
 
     stats = await get_stats()
     text = (
-        f"📊 **Bot 统计**\n\n"
+        f"📊 <b>Bot 统计</b>\n\n"
         f"👥 用户数: {stats['user_count']}\n"
         f"💬 消息数: {stats['msg_count']}\n"
         f"💰 捐赠次数: {stats['donation_count']}\n"
         f"💰 捐赠总额: {stats['total_donated']}"
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="HTML")
 
 
 async def send_admin_message_to_user(message: Message, user_id: int):
@@ -218,7 +220,7 @@ async def send_admin_message_to_user(message: Message, user_id: int):
         # 保存管理员回复
         await save_message(user_id, "out_admin", content)
 
-        await message.answer(f"✅ 已发送给用户 `{user_id}`", parse_mode="Markdown")
+        await message.answer(f"✅ 已发送给用户 <code>{user_id}</code>", parse_mode="HTML")
     except Exception as e:
         await message.answer(f"❌ 发送失败: {e}")
 
