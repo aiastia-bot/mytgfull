@@ -37,6 +37,22 @@ async def cmd_donate(message: Message):
 
     await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
 
+    # 如果启用了加密货币捐赠，额外展示钱包地址
+    if config.CRYPTO_ENABLED:
+        crypto_lines = ["\n₿ **加密货币捐赠**\n"]
+        if config.CRYPTO_BTC:
+            crypto_lines.append(f"**BTC:** `{config.CRYPTO_BTC}`")
+        if config.CRYPTO_ETH:
+            crypto_lines.append(f"**ETH:** `{config.CRYPTO_ETH}`")
+        if config.CRYPTO_USDT:
+            crypto_lines.append(f"**USDT (ERC-20):** `{config.CRYPTO_USDT}`")
+        if config.CRYPTO_TRON:
+            crypto_lines.append(f"**TRON (TRC-20):** `{config.CRYPTO_TRON}`")
+
+        if len(crypto_lines) > 1:
+            crypto_text = "\n".join(crypto_lines)
+            await message.answer(crypto_text, parse_mode="Markdown")
+
 
 @router.callback_query(F.data.startswith("donate_"))
 async def process_donation_callback(callback_query):
