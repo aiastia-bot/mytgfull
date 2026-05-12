@@ -39,10 +39,10 @@ async def main():
     async def handle_unhandled_update(update):
         pass
 
-    # 注册路由
-    dp.include_router(private_chat.router)
-    dp.include_router(admin.router)
+    # 注册路由（命令优先，通用消息最后）
     dp.include_router(donate.router)
+    dp.include_router(admin.router)
+    dp.include_router(private_chat.router)
 
     # 启动 Bot
     logging.info("🤖 Bot 启动中...")
