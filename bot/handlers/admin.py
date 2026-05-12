@@ -51,7 +51,7 @@ async def cmd_takeover(message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("用法: /takeover <用户ID>")
+        await message.answer("用法: /takeover 用户ID")
         return
 
     try:
@@ -78,7 +78,7 @@ async def cmd_auto(message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("用法: /auto <用户ID>")
+        await message.answer("用法: /auto 用户ID")
         return
 
     try:
@@ -105,7 +105,7 @@ async def cmd_history(message: Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("用法: /history <用户ID>")
+        await message.answer("用法: /history 用户ID")
         return
 
     try:
@@ -150,7 +150,7 @@ async def cmd_setprompt(message: Message):
     if len(args) < 2:
         # 显示当前提示词
         current = await get_system_prompt()
-        await message.answer(f"当前 AI 提示词：\n\n{current}\n\n修改: /setprompt <新提示词>")
+        await message.answer(f"当前 AI 提示词：\n\n{current}\n\n修改: /setprompt 新提示词")
         return
 
     new_prompt = args[1].strip()
@@ -188,7 +188,7 @@ async def handle_admin_reply(message: Message):
     user_id = await get_admin_msg_user_id(reply_msg_id)
 
     if not user_id:
-        await message.answer("❌ 无法找到对应用户，请使用 /takeover <用户ID> 后直接发送消息。")
+        await message.answer("❌ 无法找到对应用户，请使用 /takeover 用户ID 后直接发送消息。")
         return
 
     content = message.text or "[非文本消息]"
