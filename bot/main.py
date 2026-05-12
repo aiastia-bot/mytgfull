@@ -5,6 +5,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeChat
 
 from bot.config import config
 from bot.database import init_db
@@ -43,6 +44,34 @@ async def main():
     dp.include_router(donate.router)
     dp.include_router(admin.router)
     dp.include_router(private_chat.router)
+
+    # 注册命令菜单
+    # 普通用户命令
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="开始使用"),
+            BotCommand(command="donate", description="支持我们 ❤️"),
+        ],
+        scope=BotCommandScopeAllPrivateChats(),
+    )
+
+    # 管理员命令
+    try:
+        await bot.set_my_commands(
+            [
+                BotCommand(command="start", description="开始使用"),
+                BotCommand(command="donate", description="支持我们 ❤️"),
+                BotCommand(command="users", description="查看用户列表"),
+                BotCommand(command="takeover", description="接管用户对话"),
+                BotCommand(command="auto", description="交回 AI 助理"),
+                BotCommand(command="history", description="查看对话历史"),
+                BotCommand(command="setprompt", description="设置 AI 人设"),
+                BotCommand(command="stats", description="查看统计"),
+            ],
+            scope=BotCommandScopeChat(chat_id=config.ADMIN_ID),
+        )
+    except Exception as e:
+        logging.warning(f"注册管理员命令失败: {e}")
 
     # 启动 Bot
     logging.info("🤖 Bot 启动中...")
