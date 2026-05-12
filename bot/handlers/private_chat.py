@@ -192,22 +192,10 @@ async def handle_user_message(message: Message):
 
     # 如果未被接管，AI 自动回复
     if not takeover:
-        # 媒体消息用描述性文本给 AI
+        # 媒体消息统一提示 AI 无法查看
         ai_content = content
-        if message.photo:
-            ai_content = f"[用户发送了一张图片" + (f": {message.caption}" if message.caption else "") + "]"
-        elif message.video or message.video_note:
-            ai_content = f"[用户发送了一个视频" + (f": {message.caption}" if message.caption else "") + "]"
-        elif message.document:
-            ai_content = f"[用户发送了一个文件: {message.document.file_name or '未知'}" + (f": {message.caption}" if message.caption else "") + "]"
-        elif message.voice:
-            ai_content = f"[用户发送了一条语音消息]"
-        elif message.sticker:
-            ai_content = f"[用户发送了一个贴纸 {message.sticker.emoji or ''}]"
-        elif message.animation:
-            ai_content = f"[用户发送了一个动图]"
-        elif message.audio:
-            ai_content = f"[用户发送了一个音频: {message.audio.file_name or '未知'}]"
+        if not message.text:
+            ai_content = "[用户发送了一条媒体消息，你无法查看，请告知用户你目前无法查看媒体内容，建议用文字描述]"
 
         # 发送"正在输入"状态
         await message.bot.send_chat_action(user.id, "typing")
