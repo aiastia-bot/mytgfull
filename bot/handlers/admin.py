@@ -32,7 +32,10 @@ async def extract_user_id(message: Message) -> int | None:
             return user_id
 
     # 其次从命令参数中提取
-    args = message.text.split(maxsplit=1)
+    if message.text:
+        args = message.text.split(maxsplit=1)
+    else:
+        args = []
     if len(args) >= 2:
         try:
             return int(args[1].strip())
@@ -193,14 +196,42 @@ async def handle_admin_reply(message: Message):
         await message.answer("❌ 无法找到对应用户，请使用 /takeover 用户ID 后直接发送消息。")
         return
 
-    content = message.text or "[非文本消息]"
-
-    # 保存管理员回复
-    await save_message(user_id, "out_admin", content)
-
-    # 发送给用户
+    # 发送媒体或文本给用户
     try:
-        await message.bot.send_message(user_id, content)
+        if message.text:
+            content = message.text
+            await message.bot.send_message(user_id, content)
+        elif message.sticker:
+            content = f"[贴纸 {message.sticker.emoji or '🎭'}]"
+            await message.bot.send_sticker(user_id, message.sticker.file_id)
+        elif message.photo:
+            content = "[图片]" + (f": {message.caption}" if message.caption else "")
+            await message.bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption)
+        elif message.video:
+            content = "[视频]" + (f": {message.caption}" if message.caption else "")
+            await message.bot.send_video(user_id, message.video.file_id, caption=message.caption)
+        elif message.document:
+            content = f"[文件: {message.document.file_name or '未知'}]"
+            await message.bot.send_document(user_id, message.document.file_id, caption=message.caption)
+        elif message.voice:
+            content = "[语音消息]"
+            await message.bot.send_voice(user_id, message.voice.file_id)
+        elif message.animation:
+            content = "[动图]" + (f": {message.caption}" if message.caption else "")
+            await message.bot.send_animation(user_id, message.animation.file_id, caption=message.caption)
+        elif message.video_note:
+            content = "[视频笔记]"
+            await message.bot.send_video_note(user_id, message.video_note.file_id)
+        elif message.audio:
+            content = f"[音频: {message.audio.file_name or '未知'}]"
+            await message.bot.send_audio(user_id, message.audio.file_id, caption=message.caption)
+        else:
+            content = "[非文本消息]"
+            await message.bot.send_message(user_id, content)
+
+        # 保存管理员回复
+        await save_message(user_id, "out_admin", content)
+
         await message.answer(f"✅ 已发送给用户 `{user_id}`", parse_mode="Markdown")
     except Exception as e:
         await message.answer(f"❌ 发送失败: {e}")
