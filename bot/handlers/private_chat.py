@@ -14,6 +14,96 @@ from bot.utils.openai_client import ask_ai
 router = Router()
 
 
+async def forward_media_to_admin(message: Message, admin_id: int, header: str) -> Message | None:
+    """将媒体消息转发给管理员，返回管理员收到的消息对象"""
+    reply_to = await get_last_admin_msg_id(message.from_user.id)
+
+    # 转发消息处理
+    forward_info = ""
+    if message.forward_date:
+        if message.forward_from:
+            forward_info = f"\n📨 转发自: {message.forward_from.first_name}"
+            if message.forward_from.username:
+                forward_info += f" (@{message.forward_from.username})"
+            forward_info += f" | ID: {message.forward_from.id}"
+        elif message.forward_sender_name:
+            forward_info = f"\n📨 转发自: {message.forward_sender_name}"
+        elif message.forward_from_chat:
+            forward_info = f"\n📨 转发自频道: {message.forward_from_chat.title}"
+
+    caption_text = f"{header}{forward_info}"
+
+    try:
+        if message.photo:
+            caption = f"{caption_text}\n\n💬 图片" + (f": {message.caption}" if message.caption else "")
+            return await message.bot.send_photo(
+                admin_id, message.photo[-1].file_id,
+                caption=caption[:1024],
+                reply_to_message_id=reply_to,
+            )
+        elif message.video:
+            caption = f"{caption_text}\n\n💬 视频" + (f": {message.caption}" if message.caption else "")
+            return await message.bot.send_video(
+                admin_id, message.video.file_id,
+                caption=caption[:1024],
+                reply_to_message_id=reply_to,
+            )
+        elif message.document:
+            caption = f"{caption_text}\n\n💬 文件: {message.document.file_name or '未知'}" + (f"\n{message.caption}" if message.caption else "")
+            return await message.bot.send_document(
+                admin_id, message.document.file_id,
+                caption=caption[:1024],
+                reply_to_message_id=reply_to,
+            )
+        elif message.voice:
+            caption = f"{caption_text}\n\n💬 语音消息"
+            return await message.bot.send_voice(
+                admin_id, message.voice.file_id,
+                caption=caption[:1024],
+                reply_to_message_id=reply_to,
+            )
+        elif message.sticker:
+            # 贴纸没有 caption，先发贴纸再发文字说明
+            sticker_msg = await message.bot.send_sticker(
+                admin_id, message.sticker.file_id,
+                reply_to_message_id=reply_to,
+            )
+            await message.bot.send_message(
+                admin_id, f"{caption_text}\n\n💬 贴纸: {message.sticker.emoji or '🎭'}",
+                reply_to_message_id=sticker_msg.message_id,
+            )
+            return sticker_msg
+        elif message.animation:
+            caption = f"{caption_text}\n\n💬 动图" + (f": {message.caption}" if message.caption else "")
+            return await message.bot.send_animation(
+                admin_id, message.animation.file_id,
+                caption=caption[:1024],
+                reply_to_message_id=reply_to,
+            )
+        elif message.video_note:
+            # 视频笔记（圆形视频）
+            vn_msg = await message.bot.send_video_note(
+                admin_id, message.video_note.file_id,
+                reply_to_message_id=reply_to,
+            )
+            await message.bot.send_message(
+                admin_id, f"{caption_text}\n\n💬 视频笔记",
+                reply_to_message_id=vn_msg.message_id,
+            )
+            return vn_msg
+        elif message.audio:
+            caption = f"{caption_text}\n\n💬 音频: {message.audio.file_name or '未知'}" + (f"\n{message.caption}" if message.caption else "")
+            return await message.bot.send_audio(
+                admin_id, message.audio.file_id,
+                caption=caption[:1024],
+                reply_to_message_id=reply_to,
+            )
+    except Exception:
+        pass
+
+    return None
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     """处理 /start 命令"""
@@ -34,7 +124,7 @@ async def cmd_start(message: Message):
     )
 
 
-@router.message(F.chat.type == "private", ~F.text.startswith("/"), F.text | F.photo | F.document | F.sticker | F.voice | F.video)
+@router.message(F.chat.type == "private", ~F.text.startswith("/"), F.text | F.photo | F.document | F.sticker | F.voice | F.video | F.animation | F.video_note | F.audio)
 async def handle_user_message(message: Message):
     """处理用户发来的消息（非命令）"""
     # 管理员的消息由 admin.py 处理，这里跳过
@@ -55,40 +145,60 @@ async def handle_user_message(message: Message):
     # 保存用户消息
     await save_message(user.id, "in", content)
 
-    # 获取该用户上一条转发给管理员的消息 ID（用于形成对话线程）
-    last_admin_msg_id = await get_last_admin_msg_id(user.id)
-
-    # 转发给管理员
+    # 构建管理员消息头部
     user_info = f"👤 用户: {user.first_name}"
     if user.username:
         user_info += f" (@{user.username})"
     user_info += f" | ID: `{user.id}`"
 
     mode_label = "🔴 [人工接管中]" if takeover else "🤖 [AI 自动回复]"
+    header = f"{mode_label}\n{user_info}"
 
-    forward_text = f"{mode_label}\n{user_info}\n\n💬 {content}"
+    # 转发给管理员
+    last_admin_msg_id = await get_last_admin_msg_id(user.id)
 
-    try:
-        admin_msg = await message.bot.send_message(
-            config.ADMIN_ID,
-            forward_text,
-            parse_mode="Markdown",
-            reply_to_message_id=last_admin_msg_id if last_admin_msg_id else None,
-        )
-        # 记录转发消息 ID，方便管理员回复时关联
-        await save_message(user.id, "in", content, admin_msg_id=admin_msg.message_id)
-        # 更新 last_admin_msg_id 用于线程链接
-        last_admin_msg_id = admin_msg.message_id
-    except Exception as e:
-        # 转发失败不影响 AI 回复
-        pass
+    if message.text:
+        # 纯文本消息
+        forward_text = f"{header}\n\n💬 {content}"
+        try:
+            admin_msg = await message.bot.send_message(
+                config.ADMIN_ID,
+                forward_text,
+                parse_mode="Markdown",
+                reply_to_message_id=last_admin_msg_id if last_admin_msg_id else None,
+            )
+            await save_message(user.id, "in", content, admin_msg_id=admin_msg.message_id)
+        except Exception:
+            pass
+    else:
+        # 媒体消息
+        admin_msg = await forward_media_to_admin(message, config.ADMIN_ID, header)
+        if admin_msg:
+            await save_message(user.id, "in", content, admin_msg_id=admin_msg.message_id)
 
     # 如果未被接管，AI 自动回复
     if not takeover:
+        # 媒体消息用描述性文本给 AI
+        ai_content = content
+        if message.photo:
+            ai_content = f"[用户发送了一张图片" + (f": {message.caption}" if message.caption else "") + "]"
+        elif message.video or message.video_note:
+            ai_content = f"[用户发送了一个视频" + (f": {message.caption}" if message.caption else "") + "]"
+        elif message.document:
+            ai_content = f"[用户发送了一个文件: {message.document.file_name or '未知'}" + (f": {message.caption}" if message.caption else "") + "]"
+        elif message.voice:
+            ai_content = f"[用户发送了一条语音消息]"
+        elif message.sticker:
+            ai_content = f"[用户发送了一个贴纸 {message.sticker.emoji or ''}]"
+        elif message.animation:
+            ai_content = f"[用户发送了一个动图]"
+        elif message.audio:
+            ai_content = f"[用户发送了一个音频: {message.audio.file_name or '未知'}]"
+
         # 发送"正在输入"状态
         await message.bot.send_chat_action(user.id, "typing")
 
-        ai_reply = await ask_ai(user.id, content)
+        ai_reply = await ask_ai(user.id, ai_content)
 
         # 保存 AI 回复
         await save_message(user.id, "out_ai", ai_reply)
@@ -97,12 +207,12 @@ async def handle_user_message(message: Message):
 
         # 通知管理员 AI 的回复（回复到用户消息，形成线程）
         try:
+            current_last = await get_last_admin_msg_id(user.id)
             ai_admin_msg = await message.bot.send_message(
                 config.ADMIN_ID,
                 f"🤖 [AI 回复给 {user.first_name}]\n\n{ai_reply}",
-                reply_to_message_id=last_admin_msg_id if last_admin_msg_id else None,
+                reply_to_message_id=current_last if current_last else None,
             )
-            # 记录 AI 回复的消息 ID，作为下一次的 last_admin_msg
             await save_message(user.id, "out_ai", ai_reply, admin_msg_id=ai_admin_msg.message_id)
         except Exception:
             pass
