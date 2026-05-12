@@ -223,11 +223,9 @@ async def send_admin_message_to_user(message: Message, user_id: int):
         await message.answer(f"❌ 发送失败: {e}")
 
 
-@router.message(F.chat.type == "private", F.reply_to_message)
+@router.message(F.chat.type == "private", F.from_user.id == config.ADMIN_ID, F.reply_to_message)
 async def handle_admin_reply(message: Message):
     """管理员通过回复转发消息来回复用户"""
-    if not is_admin(message):
-        return
 
     # 查找转发消息对应的用户 ID
     reply_msg_id = message.reply_to_message.message_id
@@ -240,19 +238,9 @@ async def handle_admin_reply(message: Message):
     await send_admin_message_to_user(message, user_id)
 
 
-@router.message(F.chat.type == "private")
+@router.message(F.chat.type == "private", F.from_user.id == config.ADMIN_ID, ~F.text.startswith("/"))
 async def handle_admin_direct_message(message: Message):
     """管理员直接发消息（不引用、非命令）→ 自动回复最后一个用户"""
-    if not is_admin(message):
-        return
-
-    # 跳过命令消息
-    if message.text and message.text.startswith("/"):
-        return
-
-    # 跳过引用消息的情况（由 handle_admin_reply 处理）
-    if message.reply_to_message:
-        return
 
     user_id = await get_last_active_user(config.ADMIN_ID)
     if not user_id:
