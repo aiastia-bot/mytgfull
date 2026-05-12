@@ -12,6 +12,7 @@ from bot.database import (
     set_system_prompt,
     save_message,
     get_admin_msg_user_id,
+    get_last_active_user,
 )
 
 router = Router()
@@ -180,23 +181,8 @@ async def cmd_stats(message: Message):
     await message.answer(text, parse_mode="Markdown")
 
 
-@router.message(F.chat.type == "private", F.reply_to_message)
-async def handle_admin_reply(message: Message):
-    """管理员通过回复转发消息来回复用户"""
-    if not is_admin(message):
-        return
-    if not message.reply_to_message:
-        return
-
-    # 查找转发消息对应的用户 ID
-    reply_msg_id = message.reply_to_message.message_id
-    user_id = await get_admin_msg_user_id(reply_msg_id)
-
-    if not user_id:
-        await message.answer("❌ 无法找到对应用户，请使用 /takeover 用户ID 后直接发送消息。")
-        return
-
-    # 发送媒体或文本给用户
+async def send_admin_message_to_user(message: Message, user_id: int):
+    """发送管理员消息（文本或媒体）给指定用户"""
     try:
         if message.text:
             content = message.text
@@ -235,3 +221,42 @@ async def handle_admin_reply(message: Message):
         await message.answer(f"✅ 已发送给用户 `{user_id}`", parse_mode="Markdown")
     except Exception as e:
         await message.answer(f"❌ 发送失败: {e}")
+
+
+@router.message(F.chat.type == "private", F.reply_to_message)
+async def handle_admin_reply(message: Message):
+    """管理员通过回复转发消息来回复用户"""
+    if not is_admin(message):
+        return
+
+    # 查找转发消息对应的用户 ID
+    reply_msg_id = message.reply_to_message.message_id
+    user_id = await get_admin_msg_user_id(reply_msg_id)
+
+    if not user_id:
+        await message.answer("❌ 无法找到对应用户，请使用 /takeover 用户ID 后直接发送消息。")
+        return
+
+    await send_admin_message_to_user(message, user_id)
+
+
+@router.message(F.chat.type == "private")
+async def handle_admin_direct_message(message: Message):
+    """管理员直接发消息（不引用、非命令）→ 自动回复最后一个用户"""
+    if not is_admin(message):
+        return
+
+    # 跳过命令消息
+    if message.text and message.text.startswith("/"):
+        return
+
+    # 跳过引用消息的情况（由 handle_admin_reply 处理）
+    if message.reply_to_message:
+        return
+
+    user_id = await get_last_active_user(config.ADMIN_ID)
+    if not user_id:
+        await message.answer("📭 暂无用户消息，无法确定回复对象。")
+        return
+
+    await send_admin_message_to_user(message, user_id)

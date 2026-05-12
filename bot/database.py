@@ -237,6 +237,20 @@ async def get_admin_msg_user_id(admin_msg_id: int) -> int:
         await db.close()
 
 
+async def get_last_active_user(admin_id: int) -> int | None:
+    """获取管理员最近交流的用户 ID（最后一个发来消息的用户）"""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT user_id FROM messages WHERE user_id != ? ORDER BY id DESC LIMIT 1",
+            (admin_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+    finally:
+        await db.close()
+
+
 async def get_system_prompt() -> str:
     """获取当前 AI 系统提示词"""
     from bot.config import config
