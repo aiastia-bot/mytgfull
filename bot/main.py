@@ -34,6 +34,11 @@ async def main():
     # 创建 Dispatcher
     dp = Dispatcher()
 
+    # 处理未匹配的更新（避免日志刷屏）
+    @dp.update()
+    async def handle_unhandled_update(update):
+        pass
+
     # 注册路由
     dp.include_router(private_chat.router)
     dp.include_router(admin.router)

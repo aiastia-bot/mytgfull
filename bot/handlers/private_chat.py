@@ -36,6 +36,10 @@ async def cmd_start(message: Message):
 @router.message(F.chat.type == "private", F.text | F.photo | F.document | F.sticker | F.voice | F.video)
 async def handle_user_message(message: Message):
     """处理用户发来的消息"""
+    # 管理员的消息由 admin.py 处理，这里跳过
+    if message.from_user.id == config.ADMIN_ID:
+        return
+
     user = message.from_user
 
     # 确保用户在数据库中

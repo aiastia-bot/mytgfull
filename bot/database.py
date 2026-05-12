@@ -62,6 +62,7 @@ async def ensure_user(user_id: int, username: str = None, first_name: str = None
     """确保用户存在于数据库"""
     db = await get_db()
     try:
+        now = datetime.now().isoformat()
         await db.execute(
             """INSERT INTO users (user_id, username, first_name, last_name, first_seen, last_active)
                VALUES (?, ?, ?, ?, ?, ?)
@@ -70,8 +71,8 @@ async def ensure_user(user_id: int, username: str = None, first_name: str = None
                    first_name = COALESCE(?, first_name),
                    last_name = COALESCE(?, last_name),
                    last_active = ?""",
-            (user_id, username, first_name, last_name, datetime.now().isoformat(),
-             username, first_name, last_name, datetime.now().isoformat()),
+            (user_id, username, first_name, last_name, now, now,
+             username, first_name, last_name, now),
         )
         await db.commit()
     finally:
