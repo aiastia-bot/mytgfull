@@ -192,9 +192,14 @@ async def handle_user_message(message: Message):
 
     # 如果未被接管，AI 自动回复
     if not takeover:
-        # 媒体消息统一提示 AI 无法查看
+        # 媒体消息处理
         ai_content = content
-        if not message.text:
+        if message.sticker:
+            # 贴纸告诉 AI emoji，让它自然回应
+            emoji = message.sticker.emoji or "🎭"
+            ai_content = f"[用户发送了一个表情包 {emoji}，请根据 emoji 自然地回应，简短友好]"
+        elif not message.text:
+            # 其他媒体统一提示无法查看
             ai_content = "[用户发送了一条媒体消息，你无法查看，请告知用户你目前无法查看媒体内容，建议用文字描述]"
 
         # 发送"正在输入"状态
