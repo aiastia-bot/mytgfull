@@ -7,6 +7,7 @@ from bot.database import (
     is_takeover,
     save_message,
     get_admin_msg_user_id,
+    get_last_admin_msg_id,
 )
 from bot.utils.openai_client import ask_ai
 
@@ -54,6 +55,9 @@ async def handle_user_message(message: Message):
     # 保存用户消息
     await save_message(user.id, "in", content)
 
+    # 获取该用户上一条转发给管理员的消息 ID（用于形成对话线程）
+    last_admin_msg_id = await get_last_admin_msg_id(user.id)
+
     # 转发给管理员
     user_info = f"👤 用户: {user.first_name}"
     if user.username:
@@ -69,9 +73,12 @@ async def handle_user_message(message: Message):
             config.ADMIN_ID,
             forward_text,
             parse_mode="Markdown",
+            reply_to_message_id=last_admin_msg_id if last_admin_msg_id else None,
         )
         # 记录转发消息 ID，方便管理员回复时关联
         await save_message(user.id, "in", content, admin_msg_id=admin_msg.message_id)
+        # 更新 last_admin_msg_id 用于线程链接
+        last_admin_msg_id = admin_msg.message_id
     except Exception as e:
         # 转发失败不影响 AI 回复
         pass
@@ -88,11 +95,14 @@ async def handle_user_message(message: Message):
 
         await message.answer(ai_reply)
 
-        # 通知管理员 AI 的回复
+        # 通知管理员 AI 的回复（回复到用户消息，形成线程）
         try:
-            await message.bot.send_message(
+            ai_admin_msg = await message.bot.send_message(
                 config.ADMIN_ID,
                 f"🤖 [AI 回复给 {user.first_name}]\n\n{ai_reply}",
+                reply_to_message_id=last_admin_msg_id if last_admin_msg_id else None,
             )
+            # 记录 AI 回复的消息 ID，作为下一次的 last_admin_msg
+            await save_message(user.id, "out_ai", ai_reply, admin_msg_id=ai_admin_msg.message_id)
         except Exception:
             pass

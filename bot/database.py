@@ -209,12 +209,26 @@ async def save_donation(user_id: int, amount: float, currency: str, telegram_cha
         await db.close()
 
 
-async def get_admin_msg_user_id(admin_msg_id: int) -> int:
-    """通过管理员消息 ID 查找对应用户 ID"""
+async def get_last_admin_msg_id(user_id: int) -> int | None:
+    """获取某用户最近一条转发给管理员的消息的 admin_msg_id（用于线程链接）"""
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT user_id FROM messages WHERE admin_msg_id = ? AND direction = 'in' ORDER BY id DESC LIMIT 1",
+            "SELECT admin_msg_id FROM messages WHERE user_id = ? AND admin_msg_id IS NOT NULL ORDER BY id DESC LIMIT 1",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+    finally:
+        await db.close()
+
+
+async def get_admin_msg_user_id(admin_msg_id: int) -> int:
+    """通过管理员消息 ID 查找对应用户 ID（支持所有消息类型）"""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT user_id FROM messages WHERE admin_msg_id = ? ORDER BY id DESC LIMIT 1",
             (admin_msg_id,),
         )
         row = await cursor.fetchone()
