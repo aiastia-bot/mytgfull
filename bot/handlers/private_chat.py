@@ -201,11 +201,12 @@ async def handle_user_message(message: Message):
         if admin_msg:
             admin_msg_id = admin_msg.message_id
 
-    # 发送短暂提示，让用户知道消息已收到
+    # 发送短暂提示，3秒后自动删除（Telegram Bot 不支持主动弹窗，这是最接近 toast 的方式）
     try:
-        notice = await message.answer("📨 消息已收到，正在处理中...")
+        notice = await message.answer("📨 消息已收到~")
+        asyncio.get_event_loop().create_task(_delete_after(notice, 3))
     except Exception:
-        notice = None
+        pass
 
     # 如果未被接管，AI 自动回复
     if not takeover:
@@ -231,13 +232,6 @@ async def handle_user_message(message: Message):
         # 保存 AI 回复到 DB（仅一次）
         await save_message(user.id, "out_ai", ai_reply)
 
-        # 删除提示消息
-        if notice:
-            try:
-                await notice.delete()
-            except Exception:
-                pass
-
         # 发送 AI 回复给用户
         await message.answer(ai_reply)
 
@@ -254,7 +248,5 @@ async def handle_user_message(message: Message):
         except Exception:
             pass
     else:
-        # 接管模式：只保存用户消息，提示消息几秒后自动删除
+        # 接管模式：只保存用户消息
         await save_message(user.id, "in", content, admin_msg_id=admin_msg_id)
-        if notice:
-            asyncio.get_event_loop().create_task(_delete_after(notice, 3))
