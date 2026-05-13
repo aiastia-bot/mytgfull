@@ -232,8 +232,8 @@ async def handle_user_message(message: Message):
         # 保存 AI 回复到 DB（仅一次）
         await save_message(user.id, "out_ai", ai_reply)
 
-        # 发送 AI 回复给用户
-        await message.answer(ai_reply)
+        # 发送 AI 回复给用户（parse_mode=None 避免 AI 回复中的 HTML 特殊字符导致解析错误）
+        await message.answer(ai_reply, parse_mode=None)
 
         # 通知管理员 AI 的回复（回复到用户消息，形成线程）
         try:
