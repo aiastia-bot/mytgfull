@@ -159,7 +159,7 @@ async def handle_user_message(message: Message):
     user_info = f"👤 用户: {html_module.escape(user.first_name or '未知')}"
     if user.username:
         user_info += f" (@{html_module.escape(user.username)})"
-    user_info += f" | ID: <code>{user.id}</code>"
+    user_info += f' | ID: <a href="tg://user?id={user.id}">{user.id}</a>'
 
     mode_label = "🔴 [人工接管中]" if takeover else "🤖 [AI 自动回复]"
     header = f"{mode_label}\n{user_info}"

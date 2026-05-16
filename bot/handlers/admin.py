@@ -64,7 +64,7 @@ async def cmd_users(message: Message):
         takeover_mark = "🔴" if u[6] else "🤖"
         username = f"@{html_module.escape(u[1])} " if u[1] else ""
         name = html_module.escape(u[2] or u[1] or "Unknown")
-        text += f"{takeover_mark} {name} {username}| <code>{u[0]}</code> | 末次活跃: {u[5][:16]}\n"
+        text += f'{takeover_mark} {name} {username}| <a href="tg://user?id={u[0]}">{u[0]}</a> | 末次活跃: {u[5][:16]}\n'
 
     await message.answer(text, parse_mode="HTML")
 
@@ -81,7 +81,7 @@ async def cmd_takeover(message: Message):
         return
 
     await set_takeover(user_id, True)
-    await message.answer(f"✅ 已接管用户 <code>{user_id}</code> 的对话，现在由你亲自回复。", parse_mode="HTML")
+    await message.answer(f'✅ 已接管用户 <a href="tg://user?id={user_id}">{user_id}</a> 的对话，现在由你亲自回复。', parse_mode="HTML")
 
     # 通知用户
     try:
@@ -102,7 +102,7 @@ async def cmd_auto(message: Message):
         return
 
     await set_takeover(user_id, False)
-    await message.answer(f"✅ 用户 <code>{user_id}</code> 的对话已交回 AI 助理。", parse_mode="HTML")
+    await message.answer(f'✅ 用户 <a href="tg://user?id={user_id}">{user_id}</a> 的对话已交回 AI 助理。', parse_mode="HTML")
 
     # 通知用户
     try:
@@ -127,7 +127,7 @@ async def cmd_history(message: Message):
         await message.answer("📭 暂无对话记录")
         return
 
-    text = f"📜 <b>用户 <code>{user_id}</code> 对话历史</b>\n\n"
+    text = f'📜 <b>用户 <a href="tg://user?id={user_id}">{user_id}</a> 对话历史</b>\n\n'
     for row in history:
         direction = row[0]
         content = html_module.escape(row[1] or "")
@@ -178,8 +178,24 @@ async def cmd_stats(message: Message):
         f"👥 用户数: {stats['user_count']}\n"
         f"💬 消息数: {stats['msg_count']}\n"
         f"💰 捐赠次数: {stats['donation_count']}\n"
-        f"💰 捐赠总额: {stats['total_donated']}"
+        f"💰 捐赠总额: {stats['total_donated']}\n\n"
+        f"📋 <b>用户列表</b>\n\n"
     )
+
+    users = await get_all_users()
+    if not users:
+        text += "📭 暂无用户"
+    else:
+        for u in users:
+            takeover_mark = "🔴" if u[6] else "🤖"
+            username = f"@{html_module.escape(u[1])} " if u[1] else ""
+            name = html_module.escape(u[2] or u[1] or "Unknown")
+            text += f'{takeover_mark} {name} {username}| <a href="tg://user?id={u[0]}">{u[0]}</a> | 末次活跃: {u[5][:16]}\n'
+
+    # 如果太长，截断
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n... (已截断)"
+
     await message.answer(text, parse_mode="HTML")
 
 
@@ -220,7 +236,7 @@ async def send_admin_message_to_user(message: Message, user_id: int):
         # 保存管理员回复
         await save_message(user_id, "out_admin", content)
 
-        await message.answer(f"✅ 已发送给用户 <code>{user_id}</code>", parse_mode="HTML")
+        await message.answer(f'✅ 已发送给用户 <a href="tg://user?id={user_id}">{user_id}</a>', parse_mode="HTML")
     except Exception as e:
         await message.answer(f"❌ 发送失败: {e}")
 
