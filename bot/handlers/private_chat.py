@@ -14,6 +14,7 @@ from bot.database import (
     get_last_admin_msg_id,
 )
 from bot.utils.openai_client import ask_ai
+from bot.utils.sensitive_filter import check_sensitive
 
 router = Router()
 
@@ -210,6 +211,27 @@ async def handle_user_message(message: Message):
 
     # 如果未被接管，AI 自动回复
     if not takeover:
+        # 敏感词检测：如果命中敏感词，直接返回默认回复，不调用 AI
+        is_sensitive, sensitive_reply = check_sensitive(content)
+        if is_sensitive:
+            # 保存用户消息到 DB
+            await save_message(user.id, "in", content, admin_msg_id=admin_msg_id)
+
+            # 发送默认回复给用户
+            await message.answer(sensitive_reply, parse_mode=None)
+
+            # 通知管理员触发了敏感词
+            try:
+                await message.bot.send_message(
+                    config.ADMIN_ID,
+                    f"⚠️ [敏感词拦截] {html_module.escape(user.first_name or '未知')} 的消息触发敏感词过滤\n\n"
+                    f"💬 {html_module.escape(content)}\n\n"
+                    f"🤖 已自动回复: {html_module.escape(sensitive_reply)}",
+                )
+            except Exception:
+                pass
+            return
+
         # 媒体消息处理
         ai_content = content
         if message.sticker:
