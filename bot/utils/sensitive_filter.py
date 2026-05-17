@@ -14,8 +14,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# 默认敏感词回复
-DEFAULT_SENSITIVE_REPLY = "抱歉，您的问题我无法回答。"
+# 默认敏感词回复（从 config 读取）
+def _get_sensitive_reply() -> str:
+    from bot.config import config
+    return config.SENSITIVE_REPLY
 
 # 敏感词文件路径
 SENSITIVE_WORDS_FILE = Path(__file__).resolve().parent.parent.parent / "data" / "sensitive_words.txt"
@@ -123,5 +125,5 @@ def check_sensitive(text: str, filepath: str | None = None) -> tuple[bool, str]:
     """
     words, regex_patterns = load_sensitive_words(filepath)
     if contains_sensitive_word(text, words, regex_patterns):
-        return True, DEFAULT_SENSITIVE_REPLY
+        return True, _get_sensitive_reply()
     return False, ""

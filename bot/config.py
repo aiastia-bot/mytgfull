@@ -23,6 +23,9 @@ class Config:
     # 对话记忆
     MAX_HISTORY_ROUNDS: int = int(os.getenv("MAX_HISTORY_ROUNDS", "10"))
 
+    # 敏感词过滤
+    SENSITIVE_REPLY: str = os.getenv("SENSITIVE_REPLY", "抱歉，您的问题我无法回答。")
+
     # 加密货币捐赠（留空则不显示）
     CRYPTO_ENABLED: bool = os.getenv("CRYPTO_ENABLED", "false").lower() == "true"
     CRYPTO_BTC: str = os.getenv("CRYPTO_BTC", "")
