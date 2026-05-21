@@ -178,23 +178,8 @@ async def cmd_stats(message: Message):
         f"👥 用户数: {stats['user_count']}\n"
         f"💬 消息数: {stats['msg_count']}\n"
         f"💰 捐赠次数: {stats['donation_count']}\n"
-        f"💰 捐赠总额: {stats['total_donated']}\n\n"
-        f"📋 <b>用户列表</b>\n\n"
+        f"💰 捐赠总额: {stats['total_donated']}"
     )
-
-    users = await get_all_users()
-    if not users:
-        text += "📭 暂无用户"
-    else:
-        for u in users:
-            takeover_mark = "🔴" if u[6] else "🤖"
-            username = f"@{html_module.escape(u[1])} " if u[1] else ""
-            name = html_module.escape(u[2] or u[1] or "Unknown")
-            text += f'{takeover_mark} {name} {username}| <a href="tg://user?id={u[0]}">{u[0]}</a> | 末次活跃: {u[5][:16]}\n'
-
-    # 如果太长，截断
-    if len(text) > 4000:
-        text = text[:4000] + "\n\n... (已截断)"
 
     await message.answer(text, parse_mode="HTML")
 
