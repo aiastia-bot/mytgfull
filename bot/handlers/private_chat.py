@@ -201,10 +201,8 @@ async def handle_user_message(message: Message):
     # 封禁检查（最高优先级）：被封用户照常转发给管理员（带标记），但不调 AI、回封禁提示
     is_banned = await is_user_banned(user.id)
 
-    # 捐赠门槛：未解锁的用户不发 AI，也不转发给管理员，只提示捐赠
-    if not is_banned and not await _user_can_use(user.id):
-        await message.answer(await _donation_block_notice(user.id), parse_mode="HTML")
-        return
+    # 捐赠门槛：未解锁用户照常转发给管理员（带标记），但不调 AI、回捐赠提示
+    is_locked = (not is_banned) and (not await _user_can_use(user.id))
 
     # 检查是否被管理员接管
     takeover = await is_takeover(user.id)
@@ -220,6 +218,8 @@ async def handle_user_message(message: Message):
 
     if is_banned:
         mode_label = "🚫 [已封禁]"
+    elif is_locked:
+        mode_label = "🔒 [未捐赠]"
     elif takeover:
         mode_label = "🔴 [人工接管中]"
     else:
@@ -273,6 +273,11 @@ async def handle_user_message(message: Message):
     # 封禁用户：消息已转发给管理员，但不调 AI、不存历史，只回封禁提示
     if is_banned:
         await message.answer(BANNED_NOTICE)
+        return
+
+    # 未解锁用户：消息已转发给管理员，但不调 AI、不存历史，只回捐赠提示
+    if is_locked:
+        await message.answer(await _donation_block_notice(user.id), parse_mode="HTML")
         return
 
     # 如果未被接管，AI 自动回复
