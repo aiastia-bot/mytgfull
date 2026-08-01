@@ -4,13 +4,16 @@ from aiogram import Router, F
 from aiogram.types import Message, LabeledPrice, PreCheckoutQuery
 from aiogram.filters import Command
 from bot.config import config
-from bot.database import save_donation, ensure_user
+from bot.database import save_donation, ensure_user, refresh_unlock_status, get_user_total_donated, is_user_banned
 
 router = Router()
+
+BANNED_NOTICE = "🚫 你已被封禁，无法使用本 Bot。"
 
 
 # 捐赠金额选项（Telegram Stars）
 DONATION_OPTIONS = [
+    (10, "🌟 入门支持"),
     (50, "☕ 请喝一杯咖啡"),
     (150, "🍔 请吃一顿快餐"),
     (300, "🍕 请吃一顿披萨"),
@@ -21,6 +24,11 @@ DONATION_OPTIONS = [
 @router.message(Command("donate"))
 async def cmd_donate(message: Message):
     """显示捐赠选项"""
+    # 封禁用户禁止捐赠
+    if message.from_user.id != config.ADMIN_ID and await is_user_banned(message.from_user.id):
+        await message.answer(BANNED_NOTICE)
+        return
+
     text = (
         "❤️ <b>支持我们</b>\n\n"
         "如果你觉得这个 Bot 对你有帮助，可以考虑支持一下！\n"
@@ -116,9 +124,29 @@ async def process_successful_payment(message: Message):
         payment.provider_payment_charge_id,
     )
 
-    await message.answer(
-        f"🎉 感谢你的 ⭐{amount} 捐赠！\n\n你的支持是我们前进的动力 ❤️"
-    )
+    # 根据累计捐赠重新计算解锁状态
+    just_unlocked = await refresh_unlock_status(message.from_user.id)
+
+    thanks = f"🎉 感谢你的 ⭐{amount} 捐赠！\n\n你的支持是我们前进的动力 ❤️"
+
+    if getattr(config, "DONATION_REQUIRED", False):
+        total = await get_user_total_donated(message.from_user.id)
+        if just_unlocked:
+            thanks += (
+                "\n\n🔓 <b>恭喜！你已累计捐赠 ⭐{total}，Bot 已解锁，现在可以正常使用了！</b>\n"
+                "直接给我发消息即可。"
+            ).format(total=int(total))
+        elif total < config.DONATION_MIN_AMOUNT:
+            thanks += (
+                "\n\n📊 累计已支持 ⭐{total} / ⭐{need}，"
+                "还差 ⭐{remain} 即可解锁 Bot 使用权限。"
+            ).format(
+                total=int(total),
+                need=int(config.DONATION_MIN_AMOUNT),
+                remain=int(config.DONATION_MIN_AMOUNT - total),
+            )
+
+    await message.answer(thanks, parse_mode="HTML")
 
     # 通知管理员
     try:

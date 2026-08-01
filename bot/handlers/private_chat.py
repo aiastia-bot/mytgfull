@@ -12,11 +12,46 @@ from bot.database import (
     update_message_admin_id,
     get_admin_msg_user_id,
     get_last_admin_msg_id,
+    is_user_unlocked,
+    get_user_total_donated,
+    is_user_banned,
 )
 from bot.utils.openai_client import ask_ai
 from bot.utils.sensitive_filter import check_sensitive
 
 router = Router()
+
+
+BANNED_NOTICE = "🚫 你已被封禁，无法使用本 Bot。如有疑问请联系管理员。"
+
+
+def _need_donation_unlock() -> bool:
+    """是否启用捐赠门槛"""
+    return getattr(config, "DONATION_REQUIRED", False)
+
+
+async def _user_can_use(user_id: int) -> bool:
+    """用户是否可以使用 Bot（管理员或已解锁）"""
+    if user_id == config.ADMIN_ID:
+        return True
+    if not _need_donation_unlock():
+        return True
+    return await is_user_unlocked(user_id)
+
+
+async def _donation_block_notice(user_id: int) -> str:
+    """未解锁时给用户的提示文案"""
+    donated = await get_user_total_donated(user_id)
+    need = int(config.DONATION_MIN_AMOUNT - donated) if donated < config.DONATION_MIN_AMOUNT else 0
+    progress = f"\n\n📊 当前进度: ⭐{int(donated)} / ⭐{int(config.DONATION_MIN_AMOUNT)}"
+    if need > 0:
+        progress += f"（还差 ⭐{need}）"
+    return (
+        "🔒 <b>需要先支持一下才能使用</b>\n\n"
+        f"本 Bot 需累计捐赠 ⭐{int(config.DONATION_MIN_AMOUNT)} Telegram Stars 后解锁使用。\n"
+        "发送 /donate 选择金额完成支持，即可永久解锁。\n"
+        f"{progress}"
+    )
 
 
 async def _delete_after(msg: Message, seconds: int):
@@ -128,14 +163,26 @@ async def cmd_start(message: Message):
         message.from_user.last_name,
     )
 
+    # 封禁检查（最高优先级，封禁用户禁止一切交互）
+    if message.from_user.id != config.ADMIN_ID and await is_user_banned(message.from_user.id):
+        await message.answer(BANNED_NOTICE)
+        return
+
     user_name = message.from_user.first_name or "朋友"
-    await message.answer(
-        f"👋 你好 {user_name}！\n\n"
-        f"我是主人的私人助理 Bot。\n"
-        f"你可以直接给我发消息，我会尽力帮助你。\n\n"
-        f"📌 可用命令：\n"
-        f"/donate - 支持我们 ❤️"
-    )
+
+    # 已解锁（或未开启门槛）
+    if await _user_can_use(message.from_user.id):
+        await message.answer(
+            f"👋 你好 {user_name}！\n\n"
+            f"我是主人的私人助理 Bot。\n"
+            f"你可以直接给我发消息，我会尽力帮助你。\n\n"
+            f"📌 可用命令：\n"
+            f"/donate - 支持我们 ❤️"
+        )
+        return
+
+    # 未解锁
+    await message.answer(await _donation_block_notice(message.from_user.id), parse_mode="HTML")
 
 
 @router.message(F.chat.type == "private", ~F.text.startswith("/"), F.text | F.photo | F.document | F.sticker | F.voice | F.video | F.animation | F.video_note | F.audio)
@@ -149,6 +196,16 @@ async def handle_user_message(message: Message):
 
     # 确保用户在数据库中
     await ensure_user(user.id, user.username, user.first_name, user.last_name)
+
+    # 封禁检查（最高优先级）：被封用户不转发、不回复 AI，只给一句提示
+    if await is_user_banned(user.id):
+        await message.answer(BANNED_NOTICE)
+        return
+
+    # 捐赠门槛：未解锁的用户不发 AI，也不转发给管理员，只提示捐赠
+    if not await _user_can_use(user.id):
+        await message.answer(await _donation_block_notice(user.id), parse_mode="HTML")
+        return
 
     # 检查是否被管理员接管
     takeover = await is_takeover(user.id)

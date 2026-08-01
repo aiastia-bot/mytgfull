@@ -67,6 +67,10 @@ async def main():
                 BotCommand(command="history", description="查看对话历史"),
                 BotCommand(command="setprompt", description="设置 AI 人设"),
                 BotCommand(command="stats", description="查看统计"),
+                BotCommand(command="unlock", description="手动解锁用户"),
+                BotCommand(command="lock", description="撤销手动解锁"),
+                BotCommand(command="ban", description="封禁用户"),
+                BotCommand(command="unban", description="解封用户"),
             ],
             scope=BotCommandScopeChat(chat_id=config.ADMIN_ID),
         )

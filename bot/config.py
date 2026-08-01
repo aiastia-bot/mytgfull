@@ -26,6 +26,10 @@ class Config:
     # 敏感词过滤
     SENSITIVE_REPLY: str = os.getenv("SENSITIVE_REPLY", "抱歉，您的问题我无法回答。")
 
+    # 捐赠门槛（用户需先捐赠达到此金额才能使用 Bot）
+    DONATION_REQUIRED: bool = os.getenv("DONATION_REQUIRED", "true").lower() == "true"
+    DONATION_MIN_AMOUNT: float = float(os.getenv("DONATION_MIN_AMOUNT", "10"))
+
     # 加密货币捐赠（留空则不显示）
     CRYPTO_ENABLED: bool = os.getenv("CRYPTO_ENABLED", "false").lower() == "true"
     CRYPTO_BTC: str = os.getenv("CRYPTO_BTC", "")

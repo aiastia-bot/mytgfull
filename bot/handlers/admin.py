@@ -15,6 +15,11 @@ from bot.database import (
     save_message,
     get_admin_msg_user_id,
     get_last_active_user,
+    set_manual_unlock,
+    is_user_unlocked,
+    get_user_total_donated,
+    is_user_banned,
+    set_user_banned,
 )
 
 router = Router()
@@ -182,6 +187,98 @@ async def cmd_stats(message: Message):
     )
 
     await message.answer(text, parse_mode="HTML")
+
+
+@router.message(F.chat.type == "private", Command("unlock"))
+async def cmd_unlock(message: Message):
+    """手动解锁某用户使用权限（如线下已收款）"""
+    if not is_admin(message):
+        return
+
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /unlock，或 /unlock 用户ID")
+        return
+
+    await set_manual_unlock(user_id, True)
+    donated = await get_user_total_donated(user_id)
+    await message.answer(
+        f'✅ 已手动解锁用户 <a href="tg://user?id={user_id}">{user_id}</a>\n'
+        f"💰 其累计捐赠: ⭐{int(donated)}",
+        parse_mode="HTML",
+    )
+
+    try:
+        await message.bot.send_message(user_id, "🔓 你的 Bot 使用权限已开通，现在可以正常使用了！")
+    except Exception:
+        pass
+
+
+@router.message(F.chat.type == "private", Command("lock"))
+async def cmd_lock(message: Message):
+    """撤销手动解锁（如需重新要求该用户捐赠达标）"""
+    if not is_admin(message):
+        return
+
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /lock，或 /lock 用户ID")
+        return
+
+    await set_manual_unlock(user_id, False)
+    # 捐赠达标则仍保持解锁（manual_unlock 只控制"额外特权"）
+    still = await is_user_unlocked(user_id)
+    donated = await get_user_total_donated(user_id)
+    status = "仍解锁（累计捐赠已达标）" if still else "已锁定"
+    await message.answer(
+        f'✅ 用户 <a href="tg://user?id={user_id}">{user_id}</a> 状态：{status}\n'
+        f"💰 累计捐赠: ⭐{int(donated)} / ⭐{int(config.DONATION_MIN_AMOUNT)}",
+        parse_mode="HTML",
+    )
+
+
+@router.message(F.chat.type == "private", Command("ban"))
+async def cmd_ban(message: Message):
+    """封禁某用户，封禁后无法使用 Bot"""
+    if not is_admin(message):
+        return
+
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /ban，或 /ban 用户ID")
+        return
+
+    if user_id == config.ADMIN_ID:
+        await message.answer("❌ 不能封禁管理员自己")
+        return
+
+    await set_user_banned(user_id, True)
+    await message.answer(f'🚫 已封禁用户 <a href="tg://user?id={user_id}">{user_id}</a>', parse_mode="HTML")
+
+    try:
+        await message.bot.send_message(user_id, "🚫 你已被封禁，无法继续使用本 Bot。如有疑问请联系管理员。")
+    except Exception:
+        pass
+
+
+@router.message(F.chat.type == "private", Command("unban"))
+async def cmd_unban(message: Message):
+    """解封用户"""
+    if not is_admin(message):
+        return
+
+    user_id = await extract_user_id(message)
+    if not user_id:
+        await message.answer("用法: 回复用户消息使用 /unban，或 /unban 用户ID")
+        return
+
+    await set_user_banned(user_id, False)
+    await message.answer(f'✅ 已解封用户 <a href="tg://user?id={user_id}">{user_id}</a>', parse_mode="HTML")
+
+    try:
+        await message.bot.send_message(user_id, "✅ 你已被解封，可以正常使用本 Bot 了。")
+    except Exception:
+        pass
 
 
 async def send_admin_message_to_user(message: Message, user_id: int):

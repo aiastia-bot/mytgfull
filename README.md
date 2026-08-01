@@ -25,6 +25,12 @@
 - 多个预设金额选项
 - 管理员收到捐赠通知
 
+### 🔒 捐赠门槛（付费墙）
+- 用户需累计捐赠达标后才能使用 Bot
+- 阈值可配置（默认 ⭐10 Telegram Stars）
+- 实时显示捐赠进度（当前 / 目标 / 还差多少）
+- 管理员可 `/unlock` 手动解锁（如线下已收款）
+
 ## 📦 快速开始
 
 ### 1. 安装依赖
@@ -69,6 +75,8 @@ docker compose up -d
 | `MAX_HISTORY_ROUNDS` | 对话记忆轮数 | ❌ |
 | `PAYMENT_PROVIDER_TOKEN` | Telegram 支付 Token | ❌ |
 | `DONATION_CURRENCY` | 捐赠货币 | ❌ |
+| `DONATION_REQUIRED` | 是否启用捐赠门槛（用户需先捐赠才能使用） | ❌ |
+| `DONATION_MIN_AMOUNT` | 解锁所需的最低累计金额（Stars） | ❌ |
 
 ## 📋 管理员命令
 
@@ -80,6 +88,10 @@ docker compose up -d
 | `/history <ID>` | 查看用户对话历史 |
 | `/setprompt <内容>` | 设置 AI 助理人设 |
 | `/stats` | 查看统计数据 |
+| `/unlock <ID>` | 手动解锁某用户（如线下已收款） |
+| `/lock <ID>` | 撤销手动解锁 |
+| `/ban <ID>` | 封禁某用户（禁止使用 Bot） |
+| `/unban <ID>` | 解封某用户 |
 
 ## 🔧 获取 Telegram ID
 

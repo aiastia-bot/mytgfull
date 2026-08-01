@@ -53,9 +53,23 @@ async def init_db():
             );
         """
         )
+        # 迁移：为 users 表补充 unlock 相关字段（已存在则跳过）
+        await _ensure_column(db, "users", "is_unlocked", "INTEGER DEFAULT 0")
+        await _ensure_column(db, "users", "unlocked_at", "TEXT")
+        await _ensure_column(db, "users", "manual_unlock", "INTEGER DEFAULT 0")
+        await _ensure_column(db, "users", "is_banned", "INTEGER DEFAULT 0")
+        await _ensure_column(db, "users", "banned_at", "TEXT")
         await db.commit()
     finally:
         await db.close()
+
+
+async def _ensure_column(db: aiosqlite.Connection, table: str, column: str, definition: str):
+    """如果某列不存在则添加（轻量迁移）"""
+    cursor = await db.execute(f"PRAGMA table_info({table})")
+    cols = await cursor.fetchall()
+    if not any(c[1] == column for c in cols):
+        await db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 async def ensure_user(user_id: int, username: str = None, first_name: str = None, last_name: str = None):
@@ -203,6 +217,95 @@ async def save_donation(user_id: int, amount: float, currency: str, telegram_cha
         await db.execute(
             "INSERT INTO donations (user_id, amount, currency, telegram_charge_id, provider_charge_id) VALUES (?, ?, ?, ?, ?)",
             (user_id, amount, currency, telegram_charge_id, provider_charge_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def get_user_total_donated(user_id: int) -> float:
+    """获取用户累计捐赠金额（Stars）"""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT COALESCE(SUM(amount), 0) FROM donations WHERE user_id = ?", (user_id,))
+        row = await cursor.fetchone()
+        return float(row[0]) if row else 0.0
+    finally:
+        await db.close()
+
+
+async def is_user_unlocked(user_id: int) -> bool:
+    """用户是否已解锁（已捐赠达标，或被管理员手动解锁）"""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT is_unlocked, manual_unlock FROM users WHERE user_id = ?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return False
+        return row[0] == 1 or row[1] == 1
+    finally:
+        await db.close()
+
+
+async def is_user_banned(user_id: int) -> bool:
+    """用户是否被封禁"""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT is_banned FROM users WHERE user_id = ?", (user_id,))
+        row = await cursor.fetchone()
+        return row is not None and row[0] == 1
+    finally:
+        await db.close()
+
+
+async def set_user_banned(user_id: int, banned: bool):
+    """封禁/解封用户"""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET is_banned = ?, banned_at = ? WHERE user_id = ?",
+            (1 if banned else 0, datetime.now().isoformat() if banned else None, user_id),
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def refresh_unlock_status(user_id: int) -> bool:
+    """根据累计捐赠重新计算解锁状态；返回是否（新）解锁"""
+    from bot.config import config
+    total = await get_user_total_donated(user_id)
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT is_unlocked FROM users WHERE user_id = ?", (user_id,)
+        )
+        row = await cursor.fetchone()
+        was_unlocked = row is not None and row[0] == 1
+
+        if total >= config.DONATION_MIN_AMOUNT:
+            if not was_unlocked:
+                await db.execute(
+                    "UPDATE users SET is_unlocked = 1, unlocked_at = ? WHERE user_id = ?",
+                    (datetime.now().isoformat(), user_id),
+                )
+                await db.commit()
+                return True
+            return False
+        return False
+    finally:
+        await db.close()
+
+
+async def set_manual_unlock(user_id: int, unlocked: bool):
+    """管理员手动解锁/锁定（不依赖捐赠金额）"""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE users SET manual_unlock = ? WHERE user_id = ?",
+            (1 if unlocked else 0, user_id),
         )
         await db.commit()
     finally:
