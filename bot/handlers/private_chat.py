@@ -49,7 +49,8 @@ async def _donation_block_notice(user_id: int) -> str:
     return (
         "🔒 <b>需要先支持一下才能使用</b>\n\n"
         f"本 Bot 需累计捐赠 ⭐{int(config.DONATION_MIN_AMOUNT)} Telegram Stars 后解锁使用。\n"
-        "发送 /donate 选择金额完成支持，即可永久解锁。\n"
+        "发送 /donate 选择金额完成支持，即可永久解锁。\n\n"
+        "⚠️ 注意：本 Bot 不是解码 Bot！是私聊 Bot。\n"
         f"{progress}"
     )
 
@@ -197,13 +198,11 @@ async def handle_user_message(message: Message):
     # 确保用户在数据库中
     await ensure_user(user.id, user.username, user.first_name, user.last_name)
 
-    # 封禁检查（最高优先级）：被封用户不转发、不回复 AI，只给一句提示
-    if await is_user_banned(user.id):
-        await message.answer(BANNED_NOTICE)
-        return
+    # 封禁检查（最高优先级）：被封用户照常转发给管理员（带标记），但不调 AI、回封禁提示
+    is_banned = await is_user_banned(user.id)
 
     # 捐赠门槛：未解锁的用户不发 AI，也不转发给管理员，只提示捐赠
-    if not await _user_can_use(user.id):
+    if not is_banned and not await _user_can_use(user.id):
         await message.answer(await _donation_block_notice(user.id), parse_mode="HTML")
         return
 
@@ -219,7 +218,12 @@ async def handle_user_message(message: Message):
         user_info += f" (@{html_module.escape(user.username)})"
     user_info += f' | ID: <a href="tg://user?id={user.id}">{user.id}</a>'
 
-    mode_label = "🔴 [人工接管中]" if takeover else "🤖 [AI 自动回复]"
+    if is_banned:
+        mode_label = "🚫 [已封禁]"
+    elif takeover:
+        mode_label = "🔴 [人工接管中]"
+    else:
+        mode_label = "🤖 [AI 自动回复]"
     header = f"{mode_label}\n{user_info}"
 
     # 转发给管理员（只转发，不保存消息到 DB，避免 ask_ai 历史重复）
@@ -265,6 +269,11 @@ async def handle_user_message(message: Message):
         asyncio.get_event_loop().create_task(_delete_after(notice, 3))
     except Exception:
         pass
+
+    # 封禁用户：消息已转发给管理员，但不调 AI、不存历史，只回封禁提示
+    if is_banned:
+        await message.answer(BANNED_NOTICE)
+        return
 
     # 如果未被接管，AI 自动回复
     if not takeover:
