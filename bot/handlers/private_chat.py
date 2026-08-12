@@ -270,13 +270,19 @@ async def handle_user_message(message: Message):
     except Exception:
         pass
 
-    # 封禁用户：消息已转发给管理员，但不调 AI、不存历史，只回封禁提示
+    # 封禁用户：消息已转发给管理员，但不调 AI、不存对话历史（AI 上下文），
+    # 只回封禁提示。仍需保存 admin_msg_id 映射，否则管理员回复时无法反查 user_id。
     if is_banned:
+        if admin_msg_id:
+            await save_message(user.id, "in", content, admin_msg_id=admin_msg_id)
         await message.answer(BANNED_NOTICE)
         return
 
-    # 未解锁用户：消息已转发给管理员，但不调 AI、不存历史，只回捐赠提示
+    # 未解锁用户：消息已转发给管理员，但不调 AI、不存对话历史（AI 上下文），
+    # 只回捐赠提示。仍需保存 admin_msg_id 映射，否则管理员回复时无法反查 user_id。
     if is_locked:
+        if admin_msg_id:
+            await save_message(user.id, "in", content, admin_msg_id=admin_msg_id)
         await message.answer(await _donation_block_notice(user.id), parse_mode="HTML")
         return
 
